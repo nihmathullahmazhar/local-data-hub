@@ -84,8 +84,8 @@ export const storage = {
         `"${lead.businessName}"`,
         `"${lead.clientName}"`,
         lead.leadStatus,
-        lead.priceQuoted,
         lead.finalValue,
+        lead.currency !== 'LKR' && lead.exchangeRate ? (lead.finalValue || 0) * lead.exchangeRate : lead.finalValue,
         lead.balancePaid ? 'Yes' : 'No',
         `"${lead.agreementLink || ''}"`
       ].join(','))

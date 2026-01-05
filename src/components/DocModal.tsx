@@ -19,21 +19,7 @@ type DocType = 'quotation' | 'advance' | 'balance';
 export function DocModal({ open, onClose, lead }: DocModalProps) {
   if (!lead) return null;
 
-  const getCurrencySymbol = (cur: string) => {
-    const symbols: Record<string, string> = {
-      LKR: 'Rs.',
-      USD: '$',
-      GBP: '£',
-      CAD: 'C$',
-      AUD: 'A$',
-      AED: 'AED',
-      INR: '₹',
-    };
-    return symbols[cur] || cur;
-  };
-
   const generateDocument = (type: DocType) => {
-    const symbol = getCurrencySymbol(lead.currency || 'LKR');
     const totalVal = lead.finalValue || 0;
     const advVal = lead.advanceAmount || 0;
     const balVal = lead.balanceAmount || (totalVal - advVal);
@@ -43,65 +29,108 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       day: 'numeric' 
     });
 
+    // Calculate LKR amount
+    const exchangeRate = lead.exchangeRate || 1;
+    const amountInLKR = lead.currency === 'LKR' ? totalVal : totalVal * exchangeRate;
+    const advanceInLKR = lead.currency === 'LKR' ? advVal : advVal * exchangeRate;
+    const balanceInLKR = lead.currency === 'LKR' ? balVal : balVal * exchangeRate;
+
     let docTitle = '';
     let docColor = '';
     let mainContent = '';
     let paymentStatus = '';
 
+    // Generate services table rows
+    const servicesRows = (lead.services || []).map(service => `
+      <tr style="background-color: #f9fafb;">
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+          <strong>${service.name}</strong>
+          ${service.description ? `<br><span style="font-size: 12px; color: #666;">${service.description}</span>` : ''}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${service.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${service.price.toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${(service.price * service.quantity).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    // Generate features list
+    const includedFeatures = (lead.deliveryFeatures || []).filter(f => f.included);
+    const featuresHtml = includedFeatures.length > 0 ? `
+      <div style="margin-top: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px;">
+        <strong style="color: #059669;">Included Features:</strong>
+        <ul style="margin: 10px 0 0 20px; color: #374151;">
+          ${includedFeatures.map(f => `<li>${f.feature}</li>`).join('')}
+        </ul>
+        ${lead.revisionsIncluded ? `<p style="margin-top: 10px; font-size: 12px; color: #666;"><strong>Revisions Included:</strong> ${lead.revisionsIncluded}</p>` : ''}
+      </div>
+    ` : '';
+
     if (type === 'quotation') {
       docTitle = 'QUOTATION';
       docColor = '#4f46e5';
       paymentStatus = `<span style="color: #6b7280; border: 2px solid #6b7280; padding: 5px 10px; border-radius: 5px; font-weight: bold;">ESTIMATE</span>`;
-      mainContent = `
+      
+      const hasServices = (lead.services || []).length > 0;
+      mainContent = hasServices ? `
+        ${servicesRows}
         <tr style="background-color: #f3f4f6;">
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${lead.packageType || 'Web Development'} Package</strong><br><span style="font-size: 12px; color: #666;">${lead.projectScope || 'Web Design & Development Services'}</span></td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${symbol} ${totalVal.toLocaleString()}</td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Subtotal</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
-          <td style="padding: 10px; text-align: right;"><strong>Total</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>${symbol} ${totalVal.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total</strong></td>
+          <td style="padding: 10px; text-align: right; font-size: 18px;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
+        </tr>
+      ` : `
+        <tr style="background-color: #f3f4f6;">
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${lead.packageType || 'Web Development'} Package</strong><br><span style="font-size: 12px; color: #666;">${lead.projectScope || 'Web Design & Development Services'}</span></td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
         </tr>
       `;
     } else if (type === 'advance') {
       docTitle = 'PAYMENT RECEIPT';
       docColor = '#d97706';
-      const paidDate = lead.advanceDate || lead.date;
+      const paidDate = lead.advanceDateReceived || lead.advanceDate || lead.date;
       paymentStatus = `<span style="color: #d97706; border: 2px solid #d97706; padding: 5px 10px; border-radius: 5px; font-weight: bold;">ADVANCE PAID</span>`;
       mainContent = `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${symbol} ${totalVal.toLocaleString()}</td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
         <tr style="background-color: #fffbeb;">
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Advance Payment Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.advanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #d97706;"><strong>- ${symbol} ${advVal.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Advance Payment Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.advanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #d97706;"><strong>- Rs. ${advanceInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
-          <td style="padding: 10px; text-align: right;"><strong>Balance Due</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>${symbol} ${balVal.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Balance Due</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>Rs. ${balanceInLKR.toLocaleString()}</strong></td>
         </tr>
       `;
     } else if (type === 'balance') {
       docTitle = 'PAYMENT RECEIPT';
       docColor = '#059669';
-      const paidDate = lead.balanceDate || today;
+      const paidDate = lead.balanceDateReceived || lead.balanceDate || today;
       paymentStatus = `<span style="color: #059669; border: 2px solid #059669; padding: 5px 10px; border-radius: 5px; font-weight: bold;">PAID IN FULL</span>`;
       mainContent = `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${symbol} ${totalVal.toLocaleString()}</td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Less: Advance Payment</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">- ${symbol} ${advVal.toLocaleString()}</td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Less: Advance Payment</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">- Rs. ${advanceInLKR.toLocaleString()}</td>
         </tr>
         <tr style="background-color: #ecfdf5;">
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Final Balance Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.balanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #059669;"><strong>- ${symbol} ${balVal.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Final Balance Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.balanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #059669;"><strong>- Rs. ${balanceInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
-          <td style="padding: 10px; text-align: right;"><strong>Outstanding Amount</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>${symbol} 0.00</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Outstanding Amount</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>Rs. 0.00</strong></td>
         </tr>
       `;
     }
@@ -126,11 +155,12 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
     <body>
       <div class="header">
         <div>
-          <div class="logo">Gododal<span style="color: #333;">CRM</span></div>
+          <div class="logo">Nihmathullah<span style="color: #333;"> Web Services</span></div>
           <div class="sub-logo">Digital Solutions</div>
           <div style="margin-top: 10px; font-size: 12px; color: #555;">
-            Colombo, Sri Lanka<br>
-            support@gododal.com
+            Sri Lanka<br>
+            contact@nihmathullah.com<br>
+            www.nihmathullah.com
           </div>
         </div>
         <div class="invoice-details">
@@ -151,13 +181,17 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
         <thead>
           <tr>
             <th>Description</th>
-            <th style="text-align: right;">Amount</th>
+            <th style="text-align: center;">Qty</th>
+            <th style="text-align: right;">Unit Price</th>
+            <th style="text-align: right;">Amount (LKR)</th>
           </tr>
         </thead>
         <tbody>
           ${mainContent}
         </tbody>
       </table>
+
+      ${type === 'quotation' ? featuresHtml : ''}
 
       <div style="margin-top: 40px;">
         <strong>Notes:</strong>
@@ -169,7 +203,8 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       </div>
 
       <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} Gododal. Generated via GododalCRM.</p>
+        <p>&copy; ${new Date().getFullYear()} Nihmathullah Web Services. All rights reserved.</p>
+        <p style="font-size: 10px; margin-top: 5px;">www.nihmathullah.com | contact@nihmathullah.com</p>
       </div>
       
       <script>window.print();</script>
@@ -209,7 +244,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <FileText className="w-8 h-8 mr-4 text-primary" />
               <div className="text-left">
                 <p className="font-semibold">Quotation</p>
-                <p className="text-xs text-muted-foreground">Generate price estimate document</p>
+                <p className="text-xs text-muted-foreground">Generate price estimate document (LKR)</p>
               </div>
             </Button>
             
@@ -221,7 +256,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <Receipt className="w-8 h-8 mr-4 text-amber-500" />
               <div className="text-left">
                 <p className="font-semibold">Advance Receipt</p>
-                <p className="text-xs text-muted-foreground">Receipt for advance payment</p>
+                <p className="text-xs text-muted-foreground">Receipt for advance payment (LKR)</p>
               </div>
             </Button>
             
@@ -233,7 +268,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <CreditCard className="w-8 h-8 mr-4 text-emerald-500" />
               <div className="text-left">
                 <p className="font-semibold">Final Receipt</p>
-                <p className="text-xs text-muted-foreground">Full payment receipt (Paid in Full)</p>
+                <p className="text-xs text-muted-foreground">Full payment receipt - Paid in Full (LKR)</p>
               </div>
             </Button>
           </div>
