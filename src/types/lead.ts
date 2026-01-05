@@ -1,3 +1,11 @@
+export interface ServiceItem {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  price: number;
+}
+
 export interface Lead {
   id: number;
   date: string;
@@ -20,31 +28,37 @@ export interface Lead {
   packageType: string;
   projectType: string;
   projectScope: string;
+  services: ServiceItem[];
   
   // Pricing
   currency: string;
   exchangeRate: number;
-  priceQuoted: number;
   finalValue: number;
   advanceScheme: string;
   advanceAmount: number;
   balanceAmount: number;
   paymentMethod: string;
+  amountInLKR: number;
   
   // Payments
   advancePaid: boolean;
   advanceDate: string;
   advanceMethod: string;
   advanceProof: boolean;
+  advanceDateReceived: string;
   balancePaid: boolean;
   balanceDate: string;
   balanceMethod: string;
   balanceProof: boolean;
+  balanceDateReceived: string;
   
   // Delivery
   expectedDelivery: string;
   actualDelivery: string;
   projectCompleted: boolean;
+  revisionsIncluded: number;
+  revisionNotes: string;
+  deliveryFeatures: DeliveryFeature[];
   
   // Admin
   freeDomain: boolean;
@@ -60,6 +74,13 @@ export interface Lead {
   
   // Notes
   notes: string;
+}
+
+export interface DeliveryFeature {
+  id: string;
+  feature: string;
+  included: boolean;
+  price: number;
 }
 
 export type LeadStatus = 
@@ -87,4 +108,12 @@ export interface Reminder {
   daysOverdue?: number;
   daysUntil?: number;
   priority: 'high' | 'medium' | 'normal';
+}
+
+export interface DatabaseConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
 }

@@ -81,8 +81,8 @@ export function LeadsTable({
             <th className="px-4 py-3">Package</th>
             <th className="px-4 py-3">Type</th>
             <th className="px-4 py-3">Scope</th>
-            <th className="px-4 py-3 text-right">Quoted</th>
             <th className="px-4 py-3 text-right">Final</th>
+            <th className="px-4 py-3 text-right">LKR Amt</th>
             <th className="px-4 py-3">Method</th>
             <th className="px-2 py-3 text-center">Adv</th>
             <th className="px-4 py-3 text-right">Adv Amt</th>
@@ -178,8 +178,8 @@ export function LeadsTable({
                   {lead.projectScope || '-'}
                 </td>
 
-                <td className="px-4 py-3 text-muted-foreground text-right text-xs">{formatPrice(lead.priceQuoted)}</td>
                 <td className="px-4 py-3 font-medium text-emerald-400 text-right text-xs">{formatPrice(lead.finalValue)}</td>
+                <td className="px-4 py-3 text-muted-foreground text-right text-xs">{lead.currency !== 'LKR' && lead.exchangeRate ? `Rs. ${((lead.finalValue || 0) * lead.exchangeRate).toLocaleString()}` : '-'}</td>
 
                 <td className="px-4 py-3 text-xs text-muted-foreground">{lead.paymentMethod || '-'}</td>
                 

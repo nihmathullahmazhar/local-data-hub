@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lead, LeadStatus } from '@/types/lead';
+import { Lead, LeadStatus, ServiceItem, DeliveryFeature } from '@/types/lead';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Check, ChevronLeft, ChevronRight, UserPlus } from 'lucide-react';
+import { 
+  Check, 
+  ChevronLeft, 
+  ChevronRight, 
+  UserPlus, 
+  Plus, 
+  Trash2, 
+  Save,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface LeadModalProps {
   open: boolean;
@@ -37,11 +52,24 @@ const CURRENCIES = ['LKR', 'USD', 'GBP', 'CAD', 'AUD', 'AED', 'INR'];
 const ADVANCE_SCHEMES = ['50', '25', '30', 'custom', 'fixed'];
 const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'PayPal', 'Wise', 'Payoneer', 'Crypto', 'Other'];
 
+const DEFAULT_SERVICES: ServiceItem[] = [
+  { id: '1', name: 'Website Design', description: 'Custom website design', quantity: 1, price: 0 },
+];
+
+const DEFAULT_FEATURES: DeliveryFeature[] = [
+  { id: '1', feature: 'Responsive Design', included: true, price: 0 },
+  { id: '2', feature: 'SEO Optimization', included: true, price: 0 },
+  { id: '3', feature: 'Contact Form', included: true, price: 0 },
+  { id: '4', feature: 'Social Media Integration', included: false, price: 0 },
+  { id: '5', feature: 'E-commerce Integration', included: false, price: 0 },
+];
+
 const TOTAL_STEPS = 6;
 
 export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: LeadModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Lead>>({});
+  const [servicesOpen, setServicesOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -71,6 +99,10 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
           repeatClient: false,
           advanceProof: false,
           balanceProof: false,
+          services: DEFAULT_SERVICES,
+          deliveryFeatures: DEFAULT_FEATURES,
+          revisionsIncluded: 2,
+          exchangeRate: 1,
         });
       }
       setCurrentStep(1);
@@ -85,6 +117,7 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
     const finalVal = formData.finalValue || 0;
     const scheme = formData.advanceScheme || '50';
     const customPercent = formData.advanceAmount || 0;
+    const exchangeRate = formData.exchangeRate || 1;
 
     let advance = 0;
     if (scheme === '50') advance = finalVal * 0.5;
@@ -93,7 +126,9 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
     else if (scheme === 'custom') advance = finalVal * (customPercent / 100);
     else if (scheme === 'fixed') advance = customPercent;
 
-    return { advance, balance: finalVal - advance };
+    const amountInLKR = formData.currency === 'LKR' ? finalVal : finalVal * exchangeRate;
+
+    return { advance, balance: finalVal - advance, amountInLKR };
   };
 
   const handleSave = () => {
@@ -102,6 +137,7 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
       ...formData,
       advanceAmount: pricing.advance,
       balanceAmount: pricing.balance,
+      amountInLKR: pricing.amountInLKR,
     } as Omit<Lead, 'id'>;
 
     if (editingLead) {
@@ -116,6 +152,55 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
     if (step >= 1 && step <= TOTAL_STEPS) {
       setCurrentStep(step);
     }
+  };
+
+  // Services management
+  const addService = () => {
+    const services = formData.services || [];
+    const newService: ServiceItem = {
+      id: Date.now().toString(),
+      name: '',
+      description: '',
+      quantity: 1,
+      price: 0,
+    };
+    updateField('services', [...services, newService]);
+  };
+
+  const updateService = (id: string, field: keyof ServiceItem, value: any) => {
+    const services = (formData.services || []).map(s => 
+      s.id === id ? { ...s, [field]: value } : s
+    );
+    updateField('services', services);
+  };
+
+  const removeService = (id: string) => {
+    const services = (formData.services || []).filter(s => s.id !== id);
+    updateField('services', services);
+  };
+
+  // Delivery features management
+  const addFeature = () => {
+    const features = formData.deliveryFeatures || [];
+    const newFeature: DeliveryFeature = {
+      id: Date.now().toString(),
+      feature: '',
+      included: true,
+      price: 0,
+    };
+    updateField('deliveryFeatures', [...features, newFeature]);
+  };
+
+  const updateFeature = (id: string, field: keyof DeliveryFeature, value: any) => {
+    const features = (formData.deliveryFeatures || []).map(f => 
+      f.id === id ? { ...f, [field]: value } : f
+    );
+    updateField('deliveryFeatures', features);
+  };
+
+  const removeFeature = (id: string) => {
+    const features = (formData.deliveryFeatures || []).filter(f => f.id !== id);
+    updateField('deliveryFeatures', features);
   };
 
   const renderStepIndicator = () => {
@@ -148,11 +233,25 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
     );
   };
 
+  const renderSaveButton = () => (
+    <Button 
+      onClick={handleSave} 
+      size="sm"
+      className="bg-emerald-600 hover:bg-emerald-500"
+    >
+      <Save className="w-4 h-4 mr-2" />
+      {editingLead ? 'Update' : 'Save'} Lead
+    </Button>
+  );
+
   const renderStep1 = () => (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-primary uppercase tracking-wide mb-4 border-b border-border pb-2">
-        🧾 Basic Information
-      </h4>
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-primary uppercase tracking-wide border-b border-border pb-2 flex-1">
+          🧾 Basic Information
+        </h4>
+        {renderSaveButton()}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label>Date</Label>
@@ -218,9 +317,12 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
   const renderStep2 = () => (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide mb-4 border-b border-border pb-2">
-        📊 Sales Pipeline
-      </h4>
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide border-b border-border pb-2 flex-1">
+          📊 Sales Pipeline
+        </h4>
+        {renderSaveButton()}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label>Lead Status</Label>
@@ -261,9 +363,12 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
   const renderStep3 = () => (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wide mb-4 border-b border-border pb-2">
-        📦 Project Details
-      </h4>
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wide border-b border-border pb-2 flex-1">
+          📦 Project Details
+        </h4>
+        {renderSaveButton()}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label>Package Type</Label>
@@ -293,6 +398,97 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
           rows={3}
         />
       </div>
+
+      {/* Services Table Dropdown */}
+      <Collapsible open={servicesOpen} onOpenChange={setServicesOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <span className="flex items-center gap-2">
+              📋 Services / Line Items ({(formData.services || []).length})
+            </span>
+            {servicesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-4">
+          <div className="border border-border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-secondary">
+                <tr>
+                  <th className="text-left p-3 font-medium">Service Name</th>
+                  <th className="text-left p-3 font-medium">Description</th>
+                  <th className="text-center p-3 font-medium w-20">Qty</th>
+                  <th className="text-right p-3 font-medium w-32">Price (LKR)</th>
+                  <th className="w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(formData.services || []).map((service) => (
+                  <tr key={service.id} className="border-t border-border">
+                    <td className="p-2">
+                      <Input 
+                        value={service.name}
+                        onChange={(e) => updateService(service.id, 'name', e.target.value)}
+                        placeholder="Service name"
+                        className="h-8"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input 
+                        value={service.description}
+                        onChange={(e) => updateService(service.id, 'description', e.target.value)}
+                        placeholder="Description"
+                        className="h-8"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input 
+                        type="number"
+                        value={service.quantity}
+                        onChange={(e) => updateService(service.id, 'quantity', parseInt(e.target.value) || 1)}
+                        className="h-8 text-center"
+                        min={1}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input 
+                        type="number"
+                        value={service.price}
+                        onChange={(e) => updateService(service.id, 'price', parseFloat(e.target.value) || 0)}
+                        className="h-8 text-right"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => removeService(service.id)}
+                        className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-secondary/50">
+                <tr>
+                  <td colSpan={3} className="p-3 text-right font-medium">Total:</td>
+                  <td className="p-3 text-right font-bold text-primary">
+                    Rs. {(formData.services || []).reduce((sum, s) => sum + (s.price * s.quantity), 0).toLocaleString()}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            <div className="p-3 border-t border-border">
+              <Button variant="outline" size="sm" onClick={addService}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Service
+              </Button>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 
@@ -302,9 +498,12 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
     
     return (
       <div className="space-y-4">
-        <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-wide mb-4 border-b border-border pb-2">
-          💰 Pricing & 💳 Payments
-        </h4>
+        <div className="flex justify-between items-center">
+          <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-wide border-b border-border pb-2 flex-1">
+            💰 Pricing & 💳 Payments
+          </h4>
+          {renderSaveButton()}
+        </div>
         
         <div className="grid grid-cols-2 gap-4 p-3 bg-secondary/50 rounded-lg border border-border">
           <div>
@@ -331,23 +530,22 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label>Price Quoted ({formData.currency || 'LKR'})</Label>
-            <Input 
-              type="number"
-              placeholder="Original quote"
-              value={formData.priceQuoted || ''} 
-              onChange={(e) => updateField('priceQuoted', parseFloat(e.target.value) || 0)}
-            />
-          </div>
-          <div>
             <Label>Final Agreed Value ({formData.currency || 'LKR'})</Label>
             <Input 
               type="number"
-              placeholder="Negotiated amount"
+              placeholder="Agreed amount"
               value={formData.finalValue || ''} 
               onChange={(e) => updateField('finalValue', parseFloat(e.target.value) || 0)}
             />
           </div>
+          {isForeign && formData.exchangeRate && formData.exchangeRate > 0 && (
+            <div>
+              <Label className="text-emerald-400">Amount in LKR</Label>
+              <div className="h-10 flex items-center px-3 bg-emerald-900/20 border border-emerald-500/30 rounded-md text-emerald-400 font-bold">
+                Rs. {pricing.amountInLKR.toLocaleString()}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -378,43 +576,90 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
         <div className="grid grid-cols-2 gap-4 p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-lg">
           <div className="text-center">
             <p className="text-xs text-muted-foreground mb-1">Advance Amount</p>
-            <p className="text-lg font-bold text-emerald-400">{formData.currency || 'LKR'} {pricing.advance.toLocaleString()}</p>
+            <p className="text-lg font-bold text-emerald-400">Rs. {pricing.advance.toLocaleString()}</p>
           </div>
           <div className="text-center">
             <p className="text-xs text-muted-foreground mb-1">Balance Amount</p>
-            <p className="text-lg font-bold">{formData.currency || 'LKR'} {pricing.balance.toLocaleString()}</p>
+            <p className="text-lg font-bold">Rs. {pricing.balance.toLocaleString()}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
-            <Checkbox 
-              checked={formData.advancePaid || false}
-              onCheckedChange={(checked) => updateField('advancePaid', checked)}
-            />
-            <span className="text-xs">Advance Paid</span>
-          </label>
-          <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
-            <Checkbox 
-              checked={formData.advanceProof || false}
-              onCheckedChange={(checked) => updateField('advanceProof', checked)}
-            />
-            <span className="text-xs">Adv. Proof</span>
-          </label>
-          <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
-            <Checkbox 
-              checked={formData.balancePaid || false}
-              onCheckedChange={(checked) => updateField('balancePaid', checked)}
-            />
-            <span className="text-xs">Balance Paid</span>
-          </label>
-          <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
-            <Checkbox 
-              checked={formData.balanceProof || false}
-              onCheckedChange={(checked) => updateField('balanceProof', checked)}
-            />
-            <span className="text-xs">Bal. Proof</span>
-          </label>
+        {/* Advance Payment Section */}
+        <div className="p-4 bg-amber-900/10 border border-amber-900/30 rounded-lg space-y-3">
+          <h5 className="text-sm font-bold text-amber-400">Advance Payment</h5>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
+              <Checkbox 
+                checked={formData.advancePaid || false}
+                onCheckedChange={(checked) => updateField('advancePaid', checked)}
+              />
+              <span className="text-xs">Paid</span>
+            </label>
+            <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
+              <Checkbox 
+                checked={formData.advanceProof || false}
+                onCheckedChange={(checked) => updateField('advanceProof', checked)}
+              />
+              <span className="text-xs">Proof</span>
+            </label>
+            <div>
+              <Label className="text-xs">Date Received</Label>
+              <Input 
+                type="date"
+                value={formData.advanceDateReceived || ''}
+                onChange={(e) => updateField('advanceDateReceived', e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Method</Label>
+              <Select value={formData.advanceMethod || ''} onValueChange={(v) => updateField('advanceMethod', v)}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Method" /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Balance Payment Section */}
+        <div className="p-4 bg-blue-900/10 border border-blue-900/30 rounded-lg space-y-3">
+          <h5 className="text-sm font-bold text-blue-400">Balance Payment</h5>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
+              <Checkbox 
+                checked={formData.balancePaid || false}
+                onCheckedChange={(checked) => updateField('balancePaid', checked)}
+              />
+              <span className="text-xs">Paid</span>
+            </label>
+            <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">
+              <Checkbox 
+                checked={formData.balanceProof || false}
+                onCheckedChange={(checked) => updateField('balanceProof', checked)}
+              />
+              <span className="text-xs">Proof</span>
+            </label>
+            <div>
+              <Label className="text-xs">Date Received</Label>
+              <Input 
+                type="date"
+                value={formData.balanceDateReceived || ''}
+                onChange={(e) => updateField('balanceDateReceived', e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Method</Label>
+              <Select value={formData.balanceMethod || ''} onValueChange={(v) => updateField('balanceMethod', v)}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Method" /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -422,9 +667,12 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
   const renderStep5 = () => (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wide mb-4 border-b border-border pb-2">
-        🚀 Delivery Schedule
-      </h4>
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wide border-b border-border pb-2 flex-1">
+          🚀 Delivery Schedule
+        </h4>
+        {renderSaveButton()}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label>Expected Delivery</Label>
@@ -442,7 +690,86 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
             onChange={(e) => updateField('actualDelivery', e.target.value)}
           />
         </div>
+        <div>
+          <Label>Revisions Included</Label>
+          <Input 
+            type="number"
+            min={0}
+            value={formData.revisionsIncluded || 2} 
+            onChange={(e) => updateField('revisionsIncluded', parseInt(e.target.value) || 0)}
+          />
+        </div>
+        <div>
+          <Label>Revision Notes</Label>
+          <Input 
+            placeholder="Notes about revisions..."
+            value={formData.revisionNotes || ''} 
+            onChange={(e) => updateField('revisionNotes', e.target.value)}
+          />
+        </div>
       </div>
+
+      {/* Delivery Features Table */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <div className="bg-secondary p-3 flex justify-between items-center">
+          <h5 className="font-medium text-sm">📋 Project Features / Deliverables</h5>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-secondary/50">
+            <tr>
+              <th className="text-left p-3 font-medium">Feature</th>
+              <th className="text-center p-3 font-medium w-24">Included</th>
+              <th className="text-right p-3 font-medium w-32">Price (LKR)</th>
+              <th className="w-12"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(formData.deliveryFeatures || []).map((feature) => (
+              <tr key={feature.id} className="border-t border-border">
+                <td className="p-2">
+                  <Input 
+                    value={feature.feature}
+                    onChange={(e) => updateFeature(feature.id, 'feature', e.target.value)}
+                    placeholder="Feature name"
+                    className="h-8"
+                  />
+                </td>
+                <td className="p-2 text-center">
+                  <Checkbox 
+                    checked={feature.included}
+                    onCheckedChange={(checked) => updateFeature(feature.id, 'included', checked)}
+                  />
+                </td>
+                <td className="p-2">
+                  <Input 
+                    type="number"
+                    value={feature.price}
+                    onChange={(e) => updateFeature(feature.id, 'price', parseFloat(e.target.value) || 0)}
+                    className="h-8 text-right"
+                  />
+                </td>
+                <td className="p-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => removeFeature(feature.id)}
+                    className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="p-3 border-t border-border">
+          <Button variant="outline" size="sm" onClick={addFeature}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Feature
+          </Button>
+        </div>
+      </div>
+
       <label className="flex items-center gap-3 p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-lg cursor-pointer">
         <Checkbox 
           checked={formData.projectCompleted || false}
@@ -459,9 +786,12 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
   const renderStep6 = () => (
     <div className="space-y-4">
-      <h4 className="text-sm font-bold text-pink-400 uppercase tracking-wide mb-4 border-b border-border pb-2">
-        ⚙️ Admin & Domain/Hosting
-      </h4>
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-pink-400 uppercase tracking-wide border-b border-border pb-2 flex-1">
+          ⚙️ Admin & Domain/Hosting
+        </h4>
+        {renderSaveButton()}
+      </div>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <label className="flex items-center gap-2 p-2 bg-secondary rounded cursor-pointer">

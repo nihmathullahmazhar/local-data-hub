@@ -4,7 +4,8 @@ import {
   HardDrive, 
   Plus, 
   Bell, 
-  ChevronDown 
+  ChevronDown,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { storage } from '@/lib/storage';
 import { Lead, Reminder } from '@/types/lead';
 import { useState } from 'react';
+import { DatabaseConfigModal } from './DatabaseConfig';
 
 interface NavbarProps {
   onAddLead: () => void;
@@ -28,6 +30,7 @@ interface NavbarProps {
 
 export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: NavbarProps) {
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [dbConfigOpen, setDbConfigOpen] = useState(false);
 
   const getReminderIcon = (type: string) => {
     switch (type) {
@@ -76,10 +79,10 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
             </div>
             <div>
               <h1 className="text-xl font-bold">
-                Gododal<span className="text-primary">CRM</span>
+                Nihmathullah<span className="text-primary"> Web Services</span>
               </h1>
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                Command Center
+                CRM Command Center
               </p>
             </div>
           </div>
@@ -104,6 +107,16 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
             >
               <HardDrive className="w-4 h-4 mr-2" />
               Backup
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:flex"
+              onClick={() => setDbConfigOpen(true)}
+            >
+              <Database className="w-4 h-4 mr-2" />
+              Database
             </Button>
 
             <Button
@@ -165,6 +178,11 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
           </div>
         </div>
       </div>
+
+      <DatabaseConfigModal 
+        open={dbConfigOpen} 
+        onClose={() => setDbConfigOpen(false)} 
+      />
     </nav>
   );
 }
