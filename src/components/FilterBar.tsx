@@ -20,7 +20,7 @@ interface FilterBarProps {
 }
 
 const STATUSES = [
-  { value: '', label: 'All Statuses' },
+  { value: 'all', label: 'All Statuses' },
   { value: 'New', label: 'New' },
   { value: 'Contacted', label: 'Contacted' },
   { value: 'Replied', label: 'Replied' },
@@ -66,7 +66,7 @@ export function FilterBar({
         </div>
 
         {/* Status Filter */}
-        <Select value={statusFilter} onValueChange={onStatusChange}>
+        <Select value={statusFilter || 'all'} onValueChange={(v) => onStatusChange(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-[180px] bg-secondary border-border">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
