@@ -9,18 +9,29 @@ export function useLeads() {
 
   // Load data on mount
   useEffect(() => {
-    const loadedLeads = storage.getLeads();
-    const loadedActivities = storage.getActivities();
-    setLeads(loadedLeads);
-    setActivities(loadedActivities);
-    setIsLoading(false);
+    const loadData = async () => {
+      try {
+        const loadedLeads = await storage.getLeads();
+        const loadedActivities = storage.getActivities();
+        setLeads(loadedLeads);
+        setActivities(loadedActivities);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        // Fallback to sync method
+        const loadedLeads = storage.getLeadsSync();
+        const loadedActivities = storage.getActivities();
+        setLeads(loadedLeads);
+        setActivities(loadedActivities);
+      }
+      setIsLoading(false);
+    };
+    loadData();
   }, []);
 
-  // Save leads whenever they change
+  // Save leads whenever they change (to localStorage as backup)
   useEffect(() => {
     if (!isLoading) {
       storage.saveLeads(leads);
-      storage.syncToGoogleSheet(leads);
     }
   }, [leads, isLoading]);
 
@@ -57,30 +68,48 @@ export function useLeads() {
   }, []);
 
   // Add lead
-  const addLead = useCallback((leadData: Omit<Lead, 'id'>) => {
+  const addLead = useCallback(async (leadData: Omit<Lead, 'id'>) => {
+    const newId = generateId();
     const newLead: Lead = {
       ...leadData,
-      id: generateId(),
+      id: newId,
     };
+    
+    // Try saving to MySQL first
+    const result = await storage.saveLead(newLead);
+    if (result.success && result.id) {
+      newLead.id = result.id;
+    }
+    
     setLeads(prev => [...prev, newLead]);
     logActivity('Lead Added', `"${newLead.businessName}" added to pipeline`, 'plus-circle', 'text-emerald-400');
     return newLead;
   }, [generateId, logActivity]);
 
   // Update lead
-  const updateLead = useCallback((id: number, updates: Partial<Lead>) => {
-    setLeads(prev => prev.map(lead => 
-      lead.id === id ? { ...lead, ...updates } : lead
-    ));
+  const updateLead = useCallback(async (id: number, updates: Partial<Lead>) => {
     const lead = leads.find(l => l.id === id);
-    if (lead) {
-      logActivity('Lead Updated', `"${lead.businessName}" updated`, 'pencil', 'text-blue-400');
-    }
+    if (!lead) return;
+
+    const updatedLead = { ...lead, ...updates };
+    
+    // Try saving to MySQL
+    await storage.saveLead(updatedLead);
+    
+    setLeads(prev => prev.map(l => 
+      l.id === id ? updatedLead : l
+    ));
+    
+    logActivity('Lead Updated', `"${lead.businessName}" updated`, 'pencil', 'text-blue-400');
   }, [leads, logActivity]);
 
   // Delete lead
-  const deleteLead = useCallback((id: number) => {
+  const deleteLead = useCallback(async (id: number) => {
     const lead = leads.find(l => l.id === id);
+    
+    // Try deleting from MySQL
+    await storage.deleteLead(id);
+    
     setLeads(prev => prev.filter(l => l.id !== id));
     if (lead) {
       logActivity('Lead Deleted', `"${lead.businessName}" removed from system`, 'trash-2', 'text-red-400');
@@ -88,10 +117,14 @@ export function useLeads() {
   }, [leads, logActivity]);
 
   // Update lead status
-  const updateLeadStatus = useCallback((id: number, status: LeadStatus) => {
+  const updateLeadStatus = useCallback(async (id: number, status: LeadStatus) => {
     const lead = leads.find(l => l.id === id);
     if (lead && lead.leadStatus !== status) {
       const oldStatus = lead.leadStatus;
+      const updatedLead = { ...lead, leadStatus: status };
+      
+      await storage.saveLead(updatedLead);
+      
       setLeads(prev => prev.map(l => 
         l.id === id ? { ...l, leadStatus: status } : l
       ));
@@ -100,10 +133,14 @@ export function useLeads() {
   }, [leads, logActivity]);
 
   // Toggle payment
-  const togglePayment = useCallback((id: number, field: 'advancePaid' | 'balancePaid') => {
+  const togglePayment = useCallback(async (id: number, field: 'advancePaid' | 'balancePaid') => {
     const lead = leads.find(l => l.id === id);
     if (lead) {
       const newValue = !lead[field];
+      const updatedLead = { ...lead, [field]: newValue };
+      
+      await storage.saveLead(updatedLead);
+      
       setLeads(prev => prev.map(l => 
         l.id === id ? { ...l, [field]: newValue } : l
       ));
@@ -114,7 +151,7 @@ export function useLeads() {
   }, [leads, logActivity]);
 
   // Toggle project completion
-  const toggleCompletion = useCallback((id: number): boolean => {
+  const toggleCompletion = useCallback(async (id: number): Promise<boolean> => {
     const lead = leads.find(l => l.id === id);
     if (!lead) return false;
 
@@ -123,6 +160,10 @@ export function useLeads() {
     }
 
     const newValue = !lead.projectCompleted;
+    const updatedLead = { ...lead, projectCompleted: newValue };
+    
+    await storage.saveLead(updatedLead);
+    
     setLeads(prev => prev.map(l => 
       l.id === id ? { ...l, projectCompleted: newValue } : l
     ));
@@ -134,7 +175,7 @@ export function useLeads() {
   }, [leads, logActivity]);
 
   // Toggle pipeline field
-  const togglePipelineField = useCallback((id: number, field: keyof Lead, value: boolean) => {
+  const togglePipelineField = useCallback(async (id: number, field: keyof Lead, value: boolean) => {
     const lead = leads.find(l => l.id === id);
     if (!lead) return;
 
@@ -147,10 +188,25 @@ export function useLeads() {
       updates.nextFollowUp = d.toISOString().split('T')[0];
     }
 
+    const updatedLead = { ...lead, ...updates };
+    await storage.saveLead(updatedLead);
+
     setLeads(prev => prev.map(l => 
       l.id === id ? { ...l, ...updates } : l
     ));
   }, [leads]);
+
+  // Refresh leads from database
+  const refreshLeads = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const loadedLeads = await storage.getLeads();
+      setLeads(loadedLeads);
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    }
+    setIsLoading(false);
+  }, []);
 
   // Get filtered leads
   const getFilteredLeads = useCallback((statusFilter: string, searchText: string) => {
@@ -179,18 +235,22 @@ export function useLeads() {
     return filtered;
   }, [leads]);
 
-  // Stats calculations
+  // Stats calculations - all in LKR
   const stats = {
     totalLeads: leads.filter(l => l.leadStatus !== 'Closed-Lost').length,
     contactedCount: leads.filter(l => l.contacted).length,
     interestedCount: leads.filter(l => l.interested).length,
     closedWonCount: leads.filter(l => l.leadStatus === 'Closed-Won').length,
     completedProjects: leads.filter(l => l.projectCompleted).length,
-    totalRevenue: leads.reduce((sum, l) => sum + (l.finalValue || 0), 0),
+    totalRevenue: leads.reduce((sum, l) => sum + (l.amountInLKR || l.finalValue || 0), 0),
     pendingBalance: leads.reduce((sum, l) => {
       if (!l.balancePaid && l.finalValue) {
         const adv = l.advanceAmount || 0;
-        return sum + (l.finalValue - adv);
+        const exchangeRate = l.exchangeRate || 1;
+        const balanceInLKR = l.currency === 'LKR' 
+          ? (l.finalValue - adv) 
+          : (l.finalValue - adv) * exchangeRate;
+        return sum + balanceInLKR;
       }
       return sum;
     }, 0),
@@ -227,5 +287,6 @@ export function useLeads() {
     getFilteredLeads,
     clearAllData,
     logActivity,
+    refreshLeads,
   };
 }

@@ -575,12 +575,16 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
 
         <div className="grid grid-cols-2 gap-4 p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-lg">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Advance Amount</p>
-            <p className="text-lg font-bold text-emerald-400">Rs. {pricing.advance.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground mb-1">Advance Amount ({formData.currency || 'LKR'})</p>
+            <p className="text-lg font-bold text-emerald-400">
+              {formData.currency === 'LKR' ? 'Rs.' : formData.currency} {pricing.advance.toLocaleString()}
+            </p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Balance Amount</p>
-            <p className="text-lg font-bold">Rs. {pricing.balance.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground mb-1">Balance Amount ({formData.currency || 'LKR'})</p>
+            <p className="text-lg font-bold">
+              {formData.currency === 'LKR' ? 'Rs.' : formData.currency} {pricing.balance.toLocaleString()}
+            </p>
           </div>
         </div>
 
@@ -914,15 +918,14 @@ export function LeadModal({ open, onClose, onSave, onUpdate, editingLead }: Lead
           </Button>
           
           <div className="flex gap-2">
-            {currentStep < TOTAL_STEPS ? (
+            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500">
+              <Save className="w-4 h-4 mr-2" />
+              {editingLead ? 'Update' : 'Save'}
+            </Button>
+            {currentStep < TOTAL_STEPS && (
               <Button onClick={() => goToStep(currentStep + 1)}>
                 Next
                 <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            ) : (
-              <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500">
-                <Check className="w-4 h-4 mr-2" />
-                {editingLead ? 'Update Lead' : 'Save Lead'}
               </Button>
             )}
           </div>

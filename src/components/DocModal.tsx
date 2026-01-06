@@ -16,6 +16,19 @@ interface DocModalProps {
 
 type DocType = 'quotation' | 'advance' | 'balance';
 
+const getCurrencySymbol = (currency: string) => {
+  const symbols: Record<string, string> = {
+    'LKR': 'Rs.',
+    'USD': '$',
+    'GBP': '£',
+    'CAD': 'C$',
+    'AUD': 'A$',
+    'AED': 'AED',
+    'INR': '₹',
+  };
+  return symbols[currency] || currency;
+};
+
 export function DocModal({ open, onClose, lead }: DocModalProps) {
   if (!lead) return null;
 
@@ -29,29 +42,38 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       day: 'numeric' 
     });
 
-    // Calculate LKR amount
+    // Currency info
+    const currency = lead.currency || 'LKR';
+    const currencySymbol = getCurrencySymbol(currency);
     const exchangeRate = lead.exchangeRate || 1;
-    const amountInLKR = lead.currency === 'LKR' ? totalVal : totalVal * exchangeRate;
-    const advanceInLKR = lead.currency === 'LKR' ? advVal : advVal * exchangeRate;
-    const balanceInLKR = lead.currency === 'LKR' ? balVal : balVal * exchangeRate;
+    const isForeign = currency !== 'LKR';
+
+    // Calculate LKR amounts
+    const amountInLKR = isForeign ? totalVal * exchangeRate : totalVal;
+    const advanceInLKR = isForeign ? advVal * exchangeRate : advVal;
+    const balanceInLKR = isForeign ? balVal * exchangeRate : balVal;
 
     let docTitle = '';
     let docColor = '';
     let mainContent = '';
     let paymentStatus = '';
 
-    // Generate services table rows
-    const servicesRows = (lead.services || []).map(service => `
+    // Generate services table rows - show in original currency + LKR
+    const servicesRows = (lead.services || []).map(service => {
+      const itemTotal = service.price * service.quantity;
+      const itemTotalLKR = isForeign ? itemTotal * exchangeRate : itemTotal;
+      return `
       <tr style="background-color: #f9fafb;">
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
           <strong>${service.name}</strong>
           ${service.description ? `<br><span style="font-size: 12px; color: #666;">${service.description}</span>` : ''}
         </td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${service.quantity}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${service.price.toLocaleString()}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${(service.price * service.quantity).toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${currencySymbol} ${service.price.toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${itemTotalLKR.toLocaleString()}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     // Generate features list
     const includedFeatures = (lead.deliveryFeatures || []).filter(f => f.included);
@@ -65,6 +87,13 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       </div>
     ` : '';
 
+    // Currency note for foreign currency
+    const currencyNote = isForeign ? `
+      <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 8px; font-size: 12px;">
+        <strong>Currency Conversion:</strong> ${currencySymbol} ${totalVal.toLocaleString()} @ ${exchangeRate} LKR = Rs. ${amountInLKR.toLocaleString()}
+      </div>
+    ` : '';
+
     if (type === 'quotation') {
       docTitle = 'QUOTATION';
       docColor = '#4f46e5';
@@ -74,11 +103,11 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       mainContent = hasServices ? `
         ${servicesRows}
         <tr style="background-color: #f3f4f6;">
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Subtotal</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Subtotal ${isForeign ? `(${currency})` : ''}</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total (LKR)</strong></td>
           <td style="padding: 10px; text-align: right; font-size: 18px;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
         </tr>
       ` : `
@@ -87,7 +116,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
         <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total (LKR)</strong></td>
           <td style="padding: 10px; text-align: right;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
         </tr>
       `;
@@ -99,15 +128,21 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       mainContent = `
         <tr>
           <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
         <tr style="background-color: #fffbeb;">
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Advance Payment Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.advanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+            <strong>Advance Payment Received</strong><br>
+            <span style="font-size: 12px; color: #666;">
+              Amount: ${currencySymbol} ${advVal.toLocaleString()} ${isForeign ? `(Rs. ${advanceInLKR.toLocaleString()})` : ''}<br>
+              Method: ${lead.advanceMethod || 'N/A'} | Date: ${paidDate}
+            </span>
+          </td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #d97706;"><strong>- Rs. ${advanceInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Balance Due</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>Rs. ${balanceInLKR.toLocaleString()}</strong></td>
+          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Balance Due (${currency})</strong></td>
+          <td style="padding: 10px; text-align: right;"><strong>${currencySymbol} ${balVal.toLocaleString()} ${isForeign ? `= Rs. ${balanceInLKR.toLocaleString()}` : ''}</strong></td>
         </tr>
       `;
     } else if (type === 'balance') {
@@ -118,14 +153,23 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       mainContent = `
         <tr>
           <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
         <tr>
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Less: Advance Payment</td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+            Less: Advance Payment<br>
+            <span style="font-size: 12px; color: #666;">${currencySymbol} ${advVal.toLocaleString()}</span>
+          </td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">- Rs. ${advanceInLKR.toLocaleString()}</td>
         </tr>
         <tr style="background-color: #ecfdf5;">
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>Final Balance Received</strong><br><span style="font-size: 12px; color: #666;">Method: ${lead.balanceMethod || 'N/A'} | Date: ${paidDate}</span></td>
+          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+            <strong>Final Balance Received</strong><br>
+            <span style="font-size: 12px; color: #666;">
+              Amount: ${currencySymbol} ${balVal.toLocaleString()} ${isForeign ? `(Rs. ${balanceInLKR.toLocaleString()})` : ''}<br>
+              Method: ${lead.balanceMethod || 'N/A'} | Date: ${paidDate}
+            </span>
+          </td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #059669;"><strong>- Rs. ${balanceInLKR.toLocaleString()}</strong></td>
         </tr>
         <tr>
@@ -182,7 +226,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
           <tr>
             <th>Description</th>
             <th style="text-align: center;">Qty</th>
-            <th style="text-align: right;">Unit Price</th>
+            <th style="text-align: right;">Unit Price (${currency})</th>
             <th style="text-align: right;">Amount (LKR)</th>
           </tr>
         </thead>
@@ -192,6 +236,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       </table>
 
       ${type === 'quotation' ? featuresHtml : ''}
+      ${type === 'quotation' && isForeign ? currencyNote : ''}
 
       <div style="margin-top: 40px;">
         <strong>Notes:</strong>
