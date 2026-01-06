@@ -215,7 +215,7 @@ const Index = () => {
         {/* Footer */}
         <footer className="mt-12 py-6 text-center border-t border-border">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} <span className="font-bold">Gododal</span>CRM • 
+            © {new Date().getFullYear()} <span className="font-bold">Nihmathullah</span> Web Services • 
             <span className="ml-2">Built with ❤️ for Freelancers & Agencies</span>
           </p>
         </footer>
