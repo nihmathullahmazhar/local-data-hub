@@ -4,8 +4,9 @@ import {
   HardDrive, 
   Plus, 
   Bell, 
-  ChevronDown,
-  Database
+  Database,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { storage } from '@/lib/storage';
 import { Lead, Reminder } from '@/types/lead';
 import { useState } from 'react';
 import { DatabaseConfigModal } from './DatabaseConfig';
@@ -31,6 +31,7 @@ interface NavbarProps {
 export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: NavbarProps) {
   const [reminderOpen, setReminderOpen] = useState(false);
   const [dbConfigOpen, setDbConfigOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const getReminderIcon = (type: string) => {
     switch (type) {
@@ -45,17 +46,11 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
   const getReminderText = (reminder: Reminder) => {
     switch (reminder.type) {
       case 'followup':
-        return reminder.daysOverdue === 0 
-          ? 'Follow-up due TODAY' 
-          : `Follow-up ${reminder.daysOverdue} days overdue`;
-      case 'domain':
-        return `Domain expires in ${reminder.daysUntil} days`;
-      case 'hosting':
-        return `Hosting expires in ${reminder.daysUntil} days`;
-      case 'balance':
-        return 'Balance payment pending';
-      default:
-        return 'Reminder';
+        return reminder.daysOverdue === 0 ? 'Follow-up due TODAY' : `Follow-up ${reminder.daysOverdue} days overdue`;
+      case 'domain': return `Domain expires in ${reminder.daysUntil} days`;
+      case 'hosting': return `Hosting expires in ${reminder.daysUntil} days`;
+      case 'balance': return 'Balance payment pending';
+      default: return 'Reminder';
     }
   };
 
@@ -69,105 +64,63 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
 
   return (
     <nav className="sticky top-0 z-40 w-full glass-panel">
-      <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
+      <div className="max-w-[98%] mx-auto px-4 sm:px-6">
+        <div className="flex justify-between h-14 items-center">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="bg-primary p-2 rounded-lg shadow-[var(--shadow-glow-primary)] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <Rocket className="w-5 h-5 text-primary-foreground relative z-10" />
+          <div className="flex items-center gap-2">
+            <div className="bg-primary p-1.5 rounded-lg shadow-[var(--shadow-glow-primary)]">
+              <Rocket className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">
-                Nihmathullah<span className="text-primary"> Web Services</span>
+              <h1 className="text-sm md:text-lg font-bold">
+                NWS<span className="hidden md:inline text-primary"> CRM</span>
               </h1>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                CRM Command Center
-              </p>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-              onClick={onExport}
-            >
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Export
+          {/* Desktop Actions */}
+          <div className="hidden md:flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onExport}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" />Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={onBackup}>
+              <HardDrive className="w-4 h-4 mr-1" />Backup
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDbConfigOpen(true)}>
+              <Database className="w-4 h-4 mr-1" />DB
+            </Button>
+            <Button onClick={onAddLead} className="bg-primary hover:bg-primary/90 btn-glow-primary">
+              <Plus className="w-4 h-4 mr-1" />New Lead
             </Button>
             
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-              onClick={onBackup}
-            >
-              <HardDrive className="w-4 h-4 mr-2" />
-              Backup
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-              onClick={() => setDbConfigOpen(true)}
-            >
-              <Database className="w-4 h-4 mr-2" />
-              Database
-            </Button>
-
-            <Button
-              onClick={onAddLead}
-              className="bg-primary hover:bg-primary/90 btn-glow-primary"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">New Lead</span>
-            </Button>
-
             {/* Reminders */}
             <DropdownMenu open={reminderOpen} onOpenChange={setReminderOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="relative">
                   <Bell className="w-4 h-4" />
                   {reminders.length > 0 && (
-                    <Badge 
-                      className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500 text-[10px] animate-pulse"
-                    >
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center bg-red-500 text-[9px] animate-pulse">
                       {reminders.length}
                     </Badge>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-96 max-h-[500px] overflow-y-auto bg-card border-border">
-                <div className="p-4 border-b border-border flex justify-between items-center bg-secondary">
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-amber-500" />
-                    Reminders
-                  </h3>
+              <DropdownMenuContent align="end" className="w-80 max-h-[400px] overflow-y-auto bg-card border-border">
+                <div className="p-3 border-b border-border bg-secondary">
+                  <h3 className="font-bold text-sm flex items-center gap-2"><Bell className="w-3 h-3 text-amber-500" />Reminders</h3>
                 </div>
-                <div className="p-3 space-y-2">
+                <div className="p-2 space-y-1">
                   {reminders.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-4">
-                      No pending reminders 🎉
-                    </p>
+                    <p className="text-center text-muted-foreground py-4 text-sm">No pending reminders 🎉</p>
                   ) : (
                     reminders.map((reminder, idx) => (
-                      <div 
-                        key={idx}
-                        className={`p-3 rounded-lg border ${getPriorityColor(reminder.priority)}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-xl">{getReminderIcon(reminder.type)}</span>
+                      <div key={idx} className={`p-2 rounded-lg border text-xs ${getPriorityColor(reminder.priority)}`}>
+                        <div className="flex items-start gap-2">
+                          <span>{getReminderIcon(reminder.type)}</span>
                           <div className="flex-1">
-                            <p className="font-medium text-sm">{reminder.lead.businessName}</p>
-                            <p className="text-xs opacity-80">{getReminderText(reminder)}</p>
+                            <p className="font-medium">{reminder.lead.businessName}</p>
+                            <p className="opacity-80">{getReminderText(reminder)}</p>
                           </div>
-                          {reminder.priority === 'high' && (
-                            <Badge variant="destructive" className="text-[10px]">URGENT</Badge>
-                          )}
                         </div>
                       </div>
                     ))
@@ -176,13 +129,63 @@ export function Navbar({ onAddLead, leads, reminders, onExport, onBackup }: Navb
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* Mobile Actions */}
+          <div className="flex md:hidden items-center gap-2">
+            <Button onClick={onAddLead} size="sm" className="bg-primary hover:bg-primary/90">
+              <Plus className="w-4 h-4" />
+            </Button>
+            
+            {/* Mobile reminder bell */}
+            <DropdownMenu open={reminderOpen} onOpenChange={setReminderOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="relative h-8 w-8">
+                  <Bell className="w-3.5 h-3.5" />
+                  {reminders.length > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center bg-red-500 text-[9px]">
+                      {reminders.length}
+                    </Badge>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72 max-h-[300px] overflow-y-auto bg-card border-border">
+                <div className="p-2 space-y-1">
+                  {reminders.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-3 text-xs">No reminders 🎉</p>
+                  ) : (
+                    reminders.map((reminder, idx) => (
+                      <div key={idx} className={`p-2 rounded border text-xs ${getPriorityColor(reminder.priority)}`}>
+                        <span>{getReminderIcon(reminder.type)}</span> {reminder.lead.businessName}: {getReminderText(reminder)}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden pb-3 flex flex-col gap-2 border-t border-border pt-3 animate-fade-in">
+            <Button variant="outline" size="sm" onClick={() => { onExport(); setMobileMenuOpen(false); }} className="justify-start">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { onBackup(); setMobileMenuOpen(false); }} className="justify-start">
+              <HardDrive className="w-4 h-4 mr-2" />Backup JSON
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setDbConfigOpen(true); setMobileMenuOpen(false); }} className="justify-start">
+              <Database className="w-4 h-4 mr-2" />Database Config
+            </Button>
+          </div>
+        )}
       </div>
 
-      <DatabaseConfigModal 
-        open={dbConfigOpen} 
-        onClose={() => setDbConfigOpen(false)} 
-      />
+      <DatabaseConfigModal open={dbConfigOpen} onClose={() => setDbConfigOpen(false)} />
     </nav>
   );
 }

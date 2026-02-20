@@ -6,6 +6,14 @@ export interface ServiceItem {
   price: number;
 }
 
+export interface ExpenseItem {
+  id: string;
+  category: 'hosting' | 'domain' | 'tools' | 'freelancer' | 'marketing' | 'other';
+  name: string;
+  amount: number;
+  date: string;
+}
+
 export interface Lead {
   id: number;
   date: string;
@@ -51,6 +59,9 @@ export interface Lead {
   balanceMethod: string;
   balanceProof: boolean;
   balanceDateReceived: string;
+  
+  // Expenses
+  expenses: ExpenseItem[];
   
   // Delivery
   expectedDelivery: string;
@@ -117,3 +128,12 @@ export interface DatabaseConfig {
   password: string;
   database: string;
 }
+
+export const EXPENSE_CATEGORIES = [
+  { value: 'hosting', label: 'Hosting', icon: '🖥️' },
+  { value: 'domain', label: 'Domain', icon: '🌐' },
+  { value: 'tools', label: 'Tools/Software', icon: '🔧' },
+  { value: 'freelancer', label: 'Freelancer', icon: '👤' },
+  { value: 'marketing', label: 'Marketing', icon: '📢' },
+  { value: 'other', label: 'Other', icon: '📦' },
+] as const;

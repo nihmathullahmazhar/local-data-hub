@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -46,6 +45,13 @@ export function LeadsTable({
     }
   };
 
+  const getRowClass = (lead: Lead) => {
+    if (lead.leadStatus === 'Closed-Lost') return 'bg-red-950/30 border-red-900/30';
+    if (lead.leadStatus === 'Closed-Won') return 'bg-emerald-950/30 border-emerald-900/30';
+    if (lead.projectCompleted) return 'opacity-60 bg-card/30';
+    return '';
+  };
+
   const formatPrice = (val: number | undefined) => val ? val.toLocaleString() : '-';
 
   const isFollowUpDue = (lead: Lead) => {
@@ -59,129 +65,77 @@ export function LeadsTable({
       : <Minus className="w-4 h-4 text-muted-foreground/50" />
   );
 
+  const getTotalExpenses = (lead: Lead) => {
+    return (lead.expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0);
+  };
+
+  const getNetProfit = (lead: Lead) => {
+    const revenue = lead.amountInLKR || lead.finalValue || 0;
+    return revenue - getTotalExpenses(lead);
+  };
+
   return (
     <div className="table-wrapper">
       <table className="w-full text-sm text-left">
         <thead className="text-xs uppercase bg-secondary/80 text-muted-foreground">
           <tr>
+            <th className="px-3 py-3 text-center w-12">#</th>
             <th className="px-4 py-3 whitespace-nowrap">Date</th>
             <th className="px-4 py-3">Business</th>
             <th className="px-4 py-3">Client</th>
-            <th className="px-4 py-3">Country</th>
-            <th className="px-4 py-3">Platform</th>
-            <th className="px-4 py-3">Industry</th>
-            <th className="px-4 py-3">Contact</th>
             <th className="px-4 py-3">Status</th>
-            <th className="px-2 py-3 text-center">📞</th>
-            <th className="px-2 py-3 text-center">💬</th>
-            <th className="px-2 py-3 text-center">🎬</th>
-            <th className="px-2 py-3 text-center">⭐</th>
-            <th className="px-4 py-3">Follow-up</th>
-            <th className="px-2 py-3 text-center">🔔</th>
-            <th className="px-4 py-3">Package</th>
-            <th className="px-4 py-3">Type</th>
-            <th className="px-4 py-3">Scope</th>
-            <th className="px-4 py-3 text-right">Final</th>
-            <th className="px-4 py-3 text-right">LKR Amt</th>
-            <th className="px-4 py-3">Method</th>
+            <th className="px-4 py-3">Platform</th>
+            <th className="px-4 py-3 text-right">Value (LKR)</th>
+            <th className="px-4 py-3 text-right">Expenses</th>
+            <th className="px-4 py-3 text-right">Net Profit</th>
             <th className="px-2 py-3 text-center">Adv</th>
-            <th className="px-4 py-3 text-right">Adv Amt</th>
-            <th className="px-2 py-3 text-center">Proof</th>
             <th className="px-2 py-3 text-center">Bal</th>
-            <th className="px-4 py-3 text-right">Bal Amt</th>
-            <th className="px-4 py-3">Expected</th>
-            <th className="px-4 py-3">Actual</th>
             <th className="px-2 py-3 text-center">✅</th>
-            <th className="px-2 py-3 text-center">🆓</th>
-            <th className="px-4 py-3">Domain</th>
-            <th className="px-4 py-3">D. Provider</th>
-            <th className="px-4 py-3">H. Provider</th>
-            <th className="px-2 py-3 text-center">📋</th>
-            <th className="px-4 py-3">D. Renewal</th>
-            <th className="px-4 py-3">H. Renewal</th>
-            <th className="px-2 py-3 text-center">🔁</th>
-            <th className="px-4 py-3">Agreement</th>
+            <th className="px-4 py-3">Follow-up</th>
             <th className="px-4 py-3 text-center sticky right-0 bg-secondary">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {leads.map((lead) => {
+          {leads.map((lead, displayIndex) => {
             const actualIndex = allLeads.findIndex(l => l.id === lead.id);
-            const advAmt = lead.advanceAmount || 0;
-            const balAmt = lead.balanceAmount || (lead.finalValue || 0) - advAmt;
+            const originalIndex = lead.id; // Use ID-based numbering
+            const lkrValue = lead.amountInLKR || lead.finalValue || 0;
+            const expenses = getTotalExpenses(lead);
+            const netProfit = getNetProfit(lead);
 
             return (
               <tr 
                 key={lead.id}
-                className={`hover:bg-secondary/50 transition-colors border-b border-border group ${
-                  lead.projectCompleted ? 'opacity-60 bg-card/30' : ''
-                }`}
+                className={`hover:bg-secondary/50 transition-colors border-b border-border group ${getRowClass(lead)}`}
               >
+                <td className="px-3 py-3 text-center text-xs font-bold text-muted-foreground">
+                  {displayIndex + 1}
+                </td>
                 <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">{lead.date}</td>
                 <td className="px-4 py-3 font-medium">{lead.businessName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{lead.clientName || '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{lead.country || '-'}</td>
-                <td className="px-4 py-3 text-xs">
-                  <span className="bg-secondary border border-border px-2 py-1 rounded">
-                    {lead.platform || '-'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{lead.industry || '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{lead.contactInfo || '-'}</td>
                 
                 <td className="px-4 py-3">
                   <span className={`status-badge ${getStatusClass(lead.leadStatus)}`}>
                     {lead.leadStatus}
                   </span>
                 </td>
-                
-                {/* Pipeline toggles */}
-                <td className="px-2 py-3 text-center">
-                  <Checkbox 
-                    checked={lead.contacted}
-                    onCheckedChange={(checked) => onTogglePipelineField(lead.id, 'contacted', !!checked)}
-                    className="pipeline-checkbox"
-                  />
-                </td>
-                <td className="px-2 py-3 text-center">
-                  <Checkbox 
-                    checked={lead.replied}
-                    onCheckedChange={(checked) => onTogglePipelineField(lead.id, 'replied', !!checked)}
-                    className="pipeline-checkbox"
-                  />
-                </td>
-                <td className="px-2 py-3 text-center">
-                  <Checkbox 
-                    checked={lead.demoSent}
-                    onCheckedChange={(checked) => onTogglePipelineField(lead.id, 'demoSent', !!checked)}
-                    className="pipeline-checkbox"
-                  />
-                </td>
-                <td className="px-2 py-3 text-center">
-                  <Checkbox 
-                    checked={lead.interested}
-                    onCheckedChange={(checked) => onTogglePipelineField(lead.id, 'interested', !!checked)}
-                    className="pipeline-checkbox"
-                  />
-                </td>
-                
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.nextFollowUp || '-'}</td>
-                <td className="px-2 py-3 text-center">
-                  {isFollowUpDue(lead) && (
-                    <Bell className="w-4 h-4 text-amber-500 animate-pulse drop-shadow-[0_0_5px_rgba(245,158,11,0.8)]" />
-                  )}
+
+                <td className="px-4 py-3 text-xs">
+                  <span className="bg-secondary border border-border px-2 py-1 rounded">
+                    {lead.platform || '-'}
+                  </span>
                 </td>
 
-                <td className="px-4 py-3 text-muted-foreground">{lead.packageType || '-'}</td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">{lead.projectType || '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={lead.projectScope}>
-                  {lead.projectScope || '-'}
+                <td className="px-4 py-3 font-medium text-emerald-400 text-right text-xs">
+                  Rs. {lkrValue.toLocaleString()}
                 </td>
-
-                <td className="px-4 py-3 font-medium text-emerald-400 text-right text-xs">{formatPrice(lead.finalValue)}</td>
-                <td className="px-4 py-3 text-muted-foreground text-right text-xs">{lead.currency !== 'LKR' && lead.exchangeRate ? `Rs. ${((lead.finalValue || 0) * lead.exchangeRate).toLocaleString()}` : '-'}</td>
-
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.paymentMethod || '-'}</td>
+                <td className="px-4 py-3 text-right text-xs text-red-400">
+                  {expenses > 0 ? `Rs. ${expenses.toLocaleString()}` : '-'}
+                </td>
+                <td className={`px-4 py-3 text-right text-xs font-bold ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  Rs. {netProfit.toLocaleString()}
+                </td>
                 
                 <td className="px-2 py-3 text-center">
                   <button 
@@ -194,8 +148,6 @@ export function LeadsTable({
                     }
                   </button>
                 </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground text-right">{advAmt > 0 ? formatPrice(advAmt) : '-'}</td>
-                <td className="px-2 py-3 text-center"><CheckIcon checked={lead.advanceProof} /></td>
                 
                 <td className="px-2 py-3 text-center">
                   <button 
@@ -208,42 +160,20 @@ export function LeadsTable({
                     }
                   </button>
                 </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground text-right">{balAmt > 0 ? formatPrice(balAmt) : '-'}</td>
 
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.expectedDelivery || '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.actualDelivery || '-'}</td>
                 <td className="px-2 py-3 text-center"><CheckIcon checked={lead.projectCompleted} /></td>
 
-                <td className="px-2 py-3 text-center"><CheckIcon checked={lead.freeDomain} /></td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.domainName || '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.domainProvider || '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.hostingProvider || '-'}</td>
-                <td className="px-2 py-3 text-center"><CheckIcon checked={lead.renewalAgreement} /></td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.domainRenewal || '-'}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{lead.hostingRenewal || '-'}</td>
-                <td className="px-2 py-3 text-center"><CheckIcon checked={lead.repeatClient} /></td>
-
-                <td className="px-4 py-3 text-center">
-                  {lead.agreementLink ? (
-                    <a 
-                      href={lead.agreementLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 underline text-xs"
-                    >
-                      Link
-                    </a>
-                  ) : lead.agreementFileName ? (
-                    <span className="text-xs text-muted-foreground" title={lead.agreementFileName}>
-                      File
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground/50">-</span>
-                  )}
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    {lead.nextFollowUp || '-'}
+                    {isFollowUpDue(lead) && (
+                      <Bell className="w-3 h-3 text-amber-500 animate-pulse" />
+                    )}
+                  </div>
                 </td>
 
                 <td className="px-4 py-3 text-center sticky right-0 bg-card group-hover:bg-secondary border-l border-border shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.5)] transition-colors">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
