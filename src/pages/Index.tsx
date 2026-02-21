@@ -105,6 +105,7 @@ const Index = () => {
               onEdit={handleEditLead} onDelete={handleDeleteLead}
               onTogglePayment={handleTogglePayment} onToggleCompletion={handleToggleCompletion}
               onTogglePipelineField={togglePipelineField} onGenerateDoc={(id) => { setDocLeadId(id); setDocModalOpen(true); }}
+              onStatusChange={handleStatusChange}
             />
           ) : (
             <KanbanBoard leads={leads} allLeads={leads} onEdit={handleEditLead} onStatusChange={handleStatusChange} />
