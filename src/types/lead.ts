@@ -47,6 +47,8 @@ export interface Lead {
   balanceAmount: number;
   paymentMethod: string;
   amountInLKR: number;
+  discountType: 'none' | 'percentage' | 'fixed';
+  discountValue: number;
   
   // Payments
   advancePaid: boolean;

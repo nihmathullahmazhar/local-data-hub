@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Lead } from '@/types/lead';
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
   if (!lead) return null;
 
   const generateDocument = (type: DocType) => {
+    // --- 1. CALCULATIONS ---
     const totalVal = lead.finalValue || 0;
     const advVal = lead.advanceAmount || 0;
     const balVal = lead.balanceAmount || (totalVal - advVal);
@@ -42,217 +44,384 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       day: 'numeric' 
     });
 
-    // Currency info
     const currency = lead.currency || 'LKR';
     const currencySymbol = getCurrencySymbol(currency);
     const exchangeRate = lead.exchangeRate || 1;
     const isForeign = currency !== 'LKR';
 
-    // Calculate LKR amounts
-    const amountInLKR = isForeign ? totalVal * exchangeRate : totalVal;
+    // Discount Logic
+    const discountType = lead.discountType || 'none';
+    const discountValue = lead.discountValue || 0;
+    let discountAmount = 0;
+    
+    const rawServicesTotal = (lead.services || []).reduce(
+      (sum, s) => sum + (s.price * s.quantity), 
+      0
+    );
+
+    if (discountType !== 'none' && discountValue > 0) {
+      if (discountType === 'percentage') {
+        discountAmount = rawServicesTotal * (discountValue / 100);
+      } else {
+        discountAmount = discountValue;
+      }
+    }
+
+    const finalTotal = totalVal; 
+    const finalTotalLKR = isForeign ? finalTotal * exchangeRate : finalTotal;
+    const amountInLKR = isForeign ? rawServicesTotal * exchangeRate : rawServicesTotal;
     const advanceInLKR = isForeign ? advVal * exchangeRate : advVal;
     const balanceInLKR = isForeign ? balVal * exchangeRate : balVal;
 
+    // --- 2. STYLING VARS ---
     let docTitle = '';
-    let docColor = '';
+    let docAccent = ''; 
+    let statusLabel = '';
+    let statusBg = '';
     let mainContent = '';
-    let paymentStatus = '';
 
-    // Generate services table rows - show in original currency + LKR
-    const servicesRows = (lead.services || []).map(service => {
+    // HTML Helpers
+    const servicesRows = (lead.services || []).map((service) => {
       const itemTotal = service.price * service.quantity;
       const itemTotalLKR = isForeign ? itemTotal * exchangeRate : itemTotal;
+      
       return `
-      <tr style="background-color: #f9fafb;">
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-          <strong>${service.name}</strong>
-          ${service.description ? `<br><span style="font-size: 12px; color: #666;">${service.description}</span>` : ''}
+      <tr class="item-row">
+        <td class="desc-col">
+          <div class="item-name">${service.name}</div>
+          ${service.description ? `<div class="item-desc">${service.description}</div>` : ''}
         </td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${service.quantity}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${currencySymbol} ${service.price.toLocaleString()}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${itemTotalLKR.toLocaleString()}</td>
+        <td class="qty-col">${service.quantity}</td>
+        <td class="price-col">${currencySymbol} ${service.price.toLocaleString()}</td>
+        <td class="total-col">Rs. ${itemTotalLKR.toLocaleString()}</td>
       </tr>
     `;
     }).join('');
 
-    // Generate features list
+    const discountRow = discountAmount > 0 ? `
+      <tr class="total-row sub-row">
+        <td colspan="3" class="label-col">Discount ${discountType === 'percentage' ? `(${discountValue}%)` : ''}</td>
+        <td class="value-col text-red">- Rs. ${(isForeign ? discountAmount * exchangeRate : discountAmount).toLocaleString()}</td>
+      </tr>
+    ` : '';
+
     const includedFeatures = (lead.deliveryFeatures || []).filter(f => f.included);
     const featuresHtml = includedFeatures.length > 0 ? `
-      <div style="margin-top: 20px; padding: 15px; background: #f0fdf4; border-radius: 8px;">
-        <strong style="color: #059669;">Included Features:</strong>
-        <ul style="margin: 10px 0 0 20px; color: #374151;">
-          ${includedFeatures.map(f => `<li>${f.feature}</li>`).join('')}
-        </ul>
-        ${lead.revisionsIncluded ? `<p style="margin-top: 10px; font-size: 12px; color: #666;"><strong>Revisions Included:</strong> ${lead.revisionsIncluded}</p>` : ''}
+      <div class="features-section">
+        <div class="section-label">Included Features</div>
+        <div class="feature-grid">
+          ${includedFeatures.map(f => `<span class="feature-tag">${f.feature}</span>`).join('')}
+        </div>
       </div>
     ` : '';
 
-    // Currency note for foreign currency
-    const currencyNote = isForeign ? `
-      <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 8px; font-size: 12px;">
-        <strong>Currency Conversion:</strong> ${currencySymbol} ${totalVal.toLocaleString()} @ ${exchangeRate} LKR = Rs. ${amountInLKR.toLocaleString()}
-      </div>
-    ` : '';
-
+    // --- 3. LOGIC PER TYPE ---
     if (type === 'quotation') {
-      docTitle = 'QUOTATION';
-      docColor = '#4f46e5';
-      paymentStatus = `<span style="color: #6b7280; border: 2px solid #6b7280; padding: 5px 10px; border-radius: 5px; font-weight: bold;">ESTIMATE</span>`;
+      docTitle = 'Quotation';
+      docAccent = '#111827'; // Dark Slate
+      statusLabel = 'ESTIMATE';
+      statusBg = '#f3f4f6';
       
       const hasServices = (lead.services || []).length > 0;
-      mainContent = hasServices ? `
-        ${servicesRows}
-        <tr style="background-color: #f3f4f6;">
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Subtotal ${isForeign ? `(${currency})` : ''}</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</strong></td>
+      const tableBody = hasServices ? servicesRows : `
+        <tr class="item-row">
+          <td colspan="3" class="desc-col"><div class="item-name">${lead.packageType || 'Web Development'} Package</div></td>
+          <td class="total-col">Rs. ${amountInLKR.toLocaleString()}</td>
+        </tr>`;
+
+      mainContent = `
+        ${tableBody}
+        <tr class="spacer-row"><td colspan="4"></td></tr>
+        <tr class="total-row sub-row">
+          <td colspan="3" class="label-col">Subtotal</td>
+          <td class="value-col">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
-        <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total (LKR)</strong></td>
-          <td style="padding: 10px; text-align: right; font-size: 18px;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
-        </tr>
-      ` : `
-        <tr style="background-color: #f3f4f6;">
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${lead.packageType || 'Web Development'} Package</strong><br><span style="font-size: 12px; color: #666;">${lead.projectScope || 'Web Design & Development Services'}</span></td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">Rs. ${amountInLKR.toLocaleString()}</td>
-        </tr>
-        <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Total (LKR)</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>Rs. ${amountInLKR.toLocaleString()}</strong></td>
+        ${discountRow}
+        <tr class="total-row final-row">
+          <td colspan="3" class="label-col">Total Amount</td>
+          <td class="value-col">Rs. ${finalTotalLKR.toLocaleString()}</td>
         </tr>
       `;
+
     } else if (type === 'advance') {
-      docTitle = 'PAYMENT RECEIPT';
-      docColor = '#d97706';
-      const paidDate = lead.advanceDateReceived || lead.advanceDate || lead.date;
-      paymentStatus = `<span style="color: #d97706; border: 2px solid #d97706; padding: 5px 10px; border-radius: 5px; font-weight: bold;">ADVANCE PAID</span>`;
+      docTitle = 'Receipt';
+      docAccent = '#d97706'; // Amber
+      statusLabel = 'ADVANCE PAID';
+      statusBg = '#fffbeb';
+      const finalBalanceAfterDiscount = finalTotal - advVal;
+      const finalBalanceAfterDiscountLKR = isForeign ? finalBalanceAfterDiscount * exchangeRate : finalBalanceAfterDiscount;
+
       mainContent = `
-        <tr>
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</td>
+        <tr class="item-row">
+          <td colspan="3" class="desc-col"><div class="item-name">Total Project Value</div></td>
+          <td class="total-col">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
-        <tr style="background-color: #fffbeb;">
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-            <strong>Advance Payment Received</strong><br>
-            <span style="font-size: 12px; color: #666;">
-              Amount: ${currencySymbol} ${advVal.toLocaleString()} ${isForeign ? `(Rs. ${advanceInLKR.toLocaleString()})` : ''}<br>
-              Method: ${lead.advanceMethod || 'N/A'} | Date: ${paidDate}
-            </span>
-          </td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #d97706;"><strong>- Rs. ${advanceInLKR.toLocaleString()}</strong></td>
+        ${discountRow}
+        <tr class="total-row sub-row" style="color: #d97706;">
+          <td colspan="3" class="label-col">Advance Payment Received <span style="font-weight:400; font-size:10px; color:#666;">(${lead.advanceMethod || 'N/A'})</span></td>
+          <td class="value-col">- Rs. ${advanceInLKR.toLocaleString()}</td>
         </tr>
-        <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Balance Due (${currency})</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>${currencySymbol} ${balVal.toLocaleString()} ${isForeign ? `= Rs. ${balanceInLKR.toLocaleString()}` : ''}</strong></td>
+        <tr class="total-row final-row">
+          <td colspan="3" class="label-col">Balance Due</td>
+          <td class="value-col">Rs. ${finalBalanceAfterDiscountLKR.toLocaleString()}</td>
         </tr>
       `;
+
     } else if (type === 'balance') {
-      docTitle = 'PAYMENT RECEIPT';
-      docColor = '#059669';
-      const paidDate = lead.balanceDateReceived || lead.balanceDate || today;
-      paymentStatus = `<span style="color: #059669; border: 2px solid #059669; padding: 5px 10px; border-radius: 5px; font-weight: bold;">PAID IN FULL</span>`;
+      docTitle = 'Receipt';
+      docAccent = '#059669'; // Emerald
+      statusLabel = 'PAID IN FULL';
+      statusBg = '#ecfdf5';
+
       mainContent = `
-        <tr>
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">Total Project Value</td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${isForeign ? `${currencySymbol} ${totalVal.toLocaleString()} = ` : ''}Rs. ${amountInLKR.toLocaleString()}</td>
+        <tr class="item-row">
+          <td colspan="3" class="desc-col"><div class="item-name">Total Project Value</div></td>
+          <td class="total-col">Rs. ${amountInLKR.toLocaleString()}</td>
         </tr>
-        <tr>
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-            Less: Advance Payment<br>
-            <span style="font-size: 12px; color: #666;">${currencySymbol} ${advVal.toLocaleString()}</span>
-          </td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">- Rs. ${advanceInLKR.toLocaleString()}</td>
+        ${discountRow}
+        <tr class="total-row sub-row">
+          <td colspan="3" class="label-col">Less: Advance Payment</td>
+          <td class="value-col">- Rs. ${advanceInLKR.toLocaleString()}</td>
         </tr>
-        <tr style="background-color: #ecfdf5;">
-          <td colspan="3" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
-            <strong>Final Balance Received</strong><br>
-            <span style="font-size: 12px; color: #666;">
-              Amount: ${currencySymbol} ${balVal.toLocaleString()} ${isForeign ? `(Rs. ${balanceInLKR.toLocaleString()})` : ''}<br>
-              Method: ${lead.balanceMethod || 'N/A'} | Date: ${paidDate}
-            </span>
-          </td>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #059669;"><strong>- Rs. ${balanceInLKR.toLocaleString()}</strong></td>
+        <tr class="total-row sub-row" style="color: #059669;">
+          <td colspan="3" class="label-col">Final Balance Received <span style="font-weight:400; font-size:10px; color:#666;">(${lead.balanceMethod || 'N/A'})</span></td>
+          <td class="value-col">- Rs. ${balanceInLKR.toLocaleString()}</td>
         </tr>
-        <tr>
-          <td colspan="3" style="padding: 10px; text-align: right;"><strong>Outstanding Amount</strong></td>
-          <td style="padding: 10px; text-align: right;"><strong>Rs. 0.00</strong></td>
+        <tr class="total-row final-row">
+          <td colspan="3" class="label-col">Outstanding Balance</td>
+          <td class="value-col">Rs. 0.00</td>
         </tr>
       `;
     }
 
+    // --- 4. ASSEMBLE HTML ---
+    
     const receiptHTML = `
+    <!DOCTYPE html>
     <html>
     <head>
       <title>${docTitle} - ${lead.businessName}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
       <style>
-        body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 40px; align-items: flex-start; }
-        .logo { font-size: 24px; font-weight: bold; color: ${docColor}; margin-bottom: 5px; }
-        .sub-logo { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 2px; }
-        .invoice-details { text-align: right; }
-        .client-info { margin-bottom: 40px; padding: 20px; background: #f9fafb; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        th { text-align: left; padding: 10px; background: ${docColor}; color: white; }
-        .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #eee; padding-top: 20px; }
-        .status-stamp { margin-bottom: 10px; display: inline-block; }
+        /* RESET & VARS */
+        :root { --primary: ${docAccent}; --text-main: #1f2937; --text-muted: #6b7280; --border: #e5e7eb; }
+        @page { size: A4; margin: 0; }
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; background: #525659; }
+        
+        /* CONTAINERS */
+        .doc-container {
+          background: white;
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0 auto;
+          padding: 15mm 20mm;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .terms-container {
+          background: white;
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0 auto;
+          padding: 15mm 20mm;
+          box-sizing: border-box;
+          
+          /* FORCE NEW PAGE */
+          page-break-before: always; 
+          break-before: page;
+        }
+
+        /* STYLES */
+        .header { display: flex; justify-content: space-between; margin-bottom: 50px; border-bottom: 2px solid var(--primary); padding-bottom: 20px; align-items: flex-end; }
+        .brand-name { font-size: 24px; font-weight: 800; color: var(--text-main); line-height: 1; letter-spacing: -0.5px; }
+        .brand-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-top: 5px; }
+        .doc-meta { text-align: right; }
+        .doc-type { font-size: 36px; font-weight: 300; color: var(--primary); line-height: 1; text-transform: uppercase; }
+        .doc-status { display: inline-block; background: ${statusBg}; color: ${docAccent}; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; margin-top: 10px; letter-spacing: 1px; }
+
+        .info-grid { display: flex; gap: 60px; margin-bottom: 60px; }
+        .info-col { flex: 1; }
+        .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 12px; }
+        .value { font-size: 14px; color: var(--text-main); line-height: 1.6; }
+        .value strong { font-weight: 700; color: #000; display: block; margin-bottom: 2px; font-size: 15px; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; table-layout: fixed; }
+        th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 10px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+        
+        .item-row td { padding: 15px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .desc-col { width: 50%; }
+        .qty-col { width: 10%; text-align: center; color: var(--text-muted); }
+        .price-col { width: 20%; text-align: right; color: var(--text-muted); }
+        .total-col { width: 20%; text-align: right; font-weight: 600; color: var(--text-main); }
+        .item-name { font-weight: 600; font-size: 14px; color: var(--text-main); }
+        .item-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; max-width: 90%; }
+
+        .spacer-row td { padding: 10px 0; border: none; }
+        .total-row td { padding: 8px 0; text-align: right; }
+        .label-col { color: var(--text-muted); font-size: 13px; font-weight: 500; }
+        .value-col { color: var(--text-main); font-size: 14px; font-weight: 600; }
+        .text-red { color: #ef4444; }
+        .final-row td { padding-top: 15px; border-top: 2px solid var(--primary); font-size: 18px; font-weight: 800; color: var(--primary); }
+
+        .features-section { margin-top: 40px; padding-top: 20px; border-top: 1px dashed var(--border); }
+        .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 15px; }
+        .feature-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .feature-tag { background: #f9fafb; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-size: 11px; color: var(--text-main); font-weight: 500; }
+
+        .doc-footer { margin-top: auto; padding-top: 40px; text-align: center; color: var(--text-muted); font-size: 11px; }
+
+        /* TERMS STYLING */
+        .terms-title { font-size: 24px; font-weight: 700; color: var(--text-main); margin-bottom: 30px; border-bottom: 2px solid var(--border); padding-bottom: 10px; }
+        .terms-grid { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          column-gap: 40px; 
+          row-gap: 25px; 
+          font-size: 11px; 
+          line-height: 1.6; 
+          color: var(--text-main); 
+        }
+        .term-item { break-inside: avoid; }
+        .term-head { 
+          font-weight: 700; 
+          color: var(--primary); 
+          margin-bottom: 6px; 
+          display: block; 
+          font-size: 12px; 
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        @media print {
+          body { background: white; }
+          .doc-container, .terms-container { width: 100%; margin: 0; padding: 15mm 10mm; box-shadow: none; height: auto; min-height: 0; display: block; }
+          .doc-footer { position: relative; }
+        }
       </style>
     </head>
     <body>
-      <div class="header">
-        <div>
-          <div class="logo">Nihmathullah<span style="color: #333;"> Web Services</span></div>
-          <div class="sub-logo">Digital Solutions</div>
-          <div style="margin-top: 10px; font-size: 12px; color: #555;">
-            Sri Lanka<br>
-            contact@nihmathullah.com<br>
-            www.nihmathullah.com
+
+      <div class="doc-container">
+        
+        <div class="header">
+          <div>
+            <div class="brand-name">Nihmathullah<span style="font-weight:300;"> M. Azhar</span></div>
+            <div class="brand-sub">Digital Solutions Provider</div>
+          </div>
+          <div class="doc-meta">
+            <div class="doc-type">${docTitle}</div>
+            <div class="doc-status">${statusLabel}</div>
+            <div style="font-size: 12px; margin-top: 8px; color: #6b7280;">${today}</div>
           </div>
         </div>
-        <div class="invoice-details">
-          <h1 style="color: ${docColor}; margin: 0;">${docTitle}</h1>
-          <p>Date: ${today}</p>
-          <div class="status-stamp">${paymentStatus}</div>
+
+        <div class="info-grid">
+          <div class="info-col">
+            <div class="label">Client</div>
+            <div class="value">
+              <strong>${lead.businessName}</strong>
+              ${lead.clientName ? `${lead.clientName}<br>` : ''}
+              ${lead.country ? `${lead.country}` : ''}
+            </div>
+          </div>
+          <div class="info-col" style="text-align: right;">
+             <div class="label">Provider</div>
+             <div class="value">
+              <strong>Nihmathullah M. Azhar</strong>
+              nihmathullahmazhar@gmail.com<br>
+              (+94) 76 906 6840<br>
+              www.nihmathullah.com
+            </div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th style="text-align: center;">Qty</th>
+              <th style="text-align: right;">Unit</th>
+              <th style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mainContent}
+          </tbody>
+        </table>
+
+        ${type === 'quotation' ? featuresHtml : ''}
+
+        <div class="doc-footer">
+          <p>Thank you for trusting us with your business.</p>
         </div>
       </div>
 
-      <div class="client-info">
-        <strong style="color: ${docColor}">BILL TO:</strong><br>
-        <h3 style="margin: 5px 0;">${lead.businessName}</h3>
-        ${lead.clientName ? `Attn: ${lead.clientName}<br>` : ''}
-        ${lead.country ? `${lead.country}` : ''}
+      <div class="terms-container">
+        <div class="terms-title">Terms & Conditions</div>
+        <div class="terms-grid">
+          
+          <div class="term-item">
+            <span class="term-head">Advance Payment</span>
+            A 50% advance payment is required to commence the project. Work will begin only after the advance payment is received and confirmed.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Non-Refundable Payment</span>
+            All advance payments are strictly non-refundable once the project has started, regardless of project cancellation, delays, or changes in requirements.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Delivery Timeline</span>
+            Standard project delivery is between 7–14 business days, depending on the project scope, complexity, and timely submission of required content by the client. Any delays in content submission or scope changes may extend the delivery timeline.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Final Handover</span>
+            All website files, source code, live deployment access, domain, and hosting credentials will be handed over only after 100% of the total project payment is received and verified.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Scope of Work</span>
+            This quotation includes only the services explicitly mentioned. Any additional pages, features, integrations, or changes beyond the agreed scope will require a separate quotation and approval.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Exclusions</span>
+            Unless stated otherwise, third-party paid tools or plugins, advanced backend functionality, content writing, photography, custom graphics, ongoing maintenance, and hosting/domain renewal after the free 1-year period are not included.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Revisions</span>
+            Up to 2 rounds of minor revisions are included. Additional revisions or major changes will be charged separately.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Domain & Hosting</span>
+            Free domain and hosting (if offered) are provided for 1 year only. Renewal after the first year will be charged separately at prevailing rates.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Client Responsibilities</span>
+            The client must provide all required content (text, images, logos, menu, contact details) within 48 hours of project commencement. Failure to do so may affect delivery timelines.
+          </div>
+
+          <div class="term-item">
+            <span class="term-head">Payment Methods</span>
+            Payments can be made via Bank Transfer, or other mutually agreed methods. Payment confirmation must be shared after transfer.
+          </div>
+
+        </div>
+        
+        <div class="doc-footer" style="margin-top: 40px; font-weight: 500;">
+          <p>Agreement: By proceeding with the payment, the client confirms that they have read, understood, and agreed to these Terms & Conditions.</p>
+        </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th style="text-align: center;">Qty</th>
-            <th style="text-align: right;">Unit Price (${currency})</th>
-            <th style="text-align: right;">Amount (LKR)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${mainContent}
-        </tbody>
-      </table>
-
-      ${type === 'quotation' ? featuresHtml : ''}
-      ${type === 'quotation' && isForeign ? currencyNote : ''}
-
-      <div style="margin-top: 40px;">
-        <strong>Notes:</strong>
-        <p style="font-size: 13px; color: #666;">
-          ${lead.projectScope || 'Web development services as per agreement.'}
-          <br>
-          ${type === 'quotation' ? 'This quotation is valid for 14 days.' : 'Thank you for your business!'}
-        </p>
-      </div>
-
-      <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} Nihmathullah Web Services. All rights reserved.</p>
-        <p style="font-size: 10px; margin-top: 5px;">www.nihmathullah.com | contact@nihmathullah.com</p>
-      </div>
-      
-      <script>window.print();</script>
+      <script>
+        window.onload = function() { setTimeout(() => window.print(), 500); }
+      </script>
     </body>
     </html>
     `;
@@ -262,6 +431,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
       printWindow.document.write(receiptHTML);
       printWindow.document.close();
     }
+    
     onClose();
   };
 
@@ -277,7 +447,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
         
         <div className="py-4">
           <p className="text-sm text-muted-foreground mb-4">
-            Select a document type to generate for <strong>{lead.businessName}</strong>
+            Select a document type for <strong>{lead.businessName}</strong>
           </p>
           
           <div className="space-y-3">
@@ -289,7 +459,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <FileText className="w-8 h-8 mr-4 text-primary" />
               <div className="text-left">
                 <p className="font-semibold">Quotation</p>
-                <p className="text-xs text-muted-foreground">Generate price estimate document (LKR)</p>
+                <p className="text-xs text-muted-foreground">Estimate (LKR)</p>
               </div>
             </Button>
             
@@ -301,7 +471,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <Receipt className="w-8 h-8 mr-4 text-amber-500" />
               <div className="text-left">
                 <p className="font-semibold">Advance Receipt</p>
-                <p className="text-xs text-muted-foreground">Receipt for advance payment (LKR)</p>
+                <p className="text-xs text-muted-foreground">Partial Payment (LKR)</p>
               </div>
             </Button>
             
@@ -313,7 +483,7 @@ export function DocModal({ open, onClose, lead }: DocModalProps) {
               <CreditCard className="w-8 h-8 mr-4 text-emerald-500" />
               <div className="text-left">
                 <p className="font-semibold">Final Receipt</p>
-                <p className="text-xs text-muted-foreground">Full payment receipt - Paid in Full (LKR)</p>
+                <p className="text-xs text-muted-foreground">Paid in Full (LKR)</p>
               </div>
             </Button>
           </div>
